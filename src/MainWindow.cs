@@ -1337,15 +1337,16 @@ namespace Brighter
             uint limitMs = (uint)Math.Max(1, _settings.IdleMinutes) * 60000u;
             if (idleMs < limitMs) return;
 
-            Log.Write("idle: dimming to " + _settings.IdlePercent + "% of the current brightness");
+            Log.Write("idle: dimming to " + _settings.IdlePercent + "%");
             _idleSnapshot = TakeSnapshot();
             _transient = true;
             try
             {
                 foreach (MonitorCard card in _cards)
                 {
-                    // Relative to where each monitor is now, so a dim monitor gets dimmer too.
-                    card.Brightness.Value = (int)Math.Round(card.Brightness.Value * _settings.IdlePercent / 100.0);
+                    // Down to the chosen level; a monitor that is already dimmer than that is left alone.
+                    if (card.Brightness.Value > _settings.IdlePercent)
+                        card.Brightness.Value = _settings.IdlePercent;
                 }
             }
             finally

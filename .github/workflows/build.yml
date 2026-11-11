@@ -1,0 +1,36 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same script as on a developer machine: the C# compiler that ships with Windows.
+      - name: Build
+        shell: cmd
+        run: build.bat
+
+      - name: Upload exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brighter
+          path: bin/Brighter.exe
+          if-no-files-found: error
+
+      # Pushing a tag like v1.0.0 publishes a release with the exe attached.
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/Brighter.exe
+          generate_release_notes: true

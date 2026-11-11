@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Optional: for Visual Studio / Rider / `dotnet build`.
+       build.bat produces the same exe without any SDK installed. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>5</LangVersion>
+    <AssemblyName>Brighter</AssemblyName>
+    <RootNamespace>Brighter</RootNamespace>
+    <StartupObject>Brighter.Program</StartupObject>
+    <ApplicationIcon>assets\brighter.ico</ApplicationIcon>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Management" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+
+</Project>

@@ -99,9 +99,9 @@ namespace Brighter
 
         // Settings: idle
         public static string Idle { get { return T("Boştayken karart", "Dim when idle"); } }
-        public static string IdleHint { get { return T("Klavye ve fare kullanılmayınca parlaklığı düşürür, hareket gelince geri alır", "Lowers brightness when keyboard and mouse are untouched, restores on activity"); } }
+        public static string IdleHint { get { return T("Klavye ve fare kullanılmayınca her monitörü o anki parlaklığının belirlenen yüzdesine düşürür, hareket gelince geri alır", "When keyboard and mouse are untouched, lowers each monitor to the given percentage of its current brightness; restores on activity"); } }
         public static string IdleMinutes { get { return T("Bekleme (dakika)", "Wait (minutes)"); } }
-        public static string IdlePercent { get { return T("Karartma seviyesi (%)", "Dim level (%)"); } }
+        public static string IdlePercent { get { return T("Mevcut parlaklığın yüzdesi (%)", "Percent of current brightness (%)"); } }
 
         // Settings: per-application profiles
         public static string AppRules { get { return T("Uygulamaya göre profil", "Profiles per application"); } }

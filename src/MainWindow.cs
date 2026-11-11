@@ -1323,6 +1323,7 @@ namespace Brighter
             {
                 if (idleMs < 3000 || !_settings.IdleEnabled)
                 {
+                    Log.Write("idle: restoring");
                     _transient = true;
                     try { RestoreSnapshot(_idleSnapshot); }
                     finally { _transient = false; }
@@ -1336,14 +1337,15 @@ namespace Brighter
             uint limitMs = (uint)Math.Max(1, _settings.IdleMinutes) * 60000u;
             if (idleMs < limitMs) return;
 
+            Log.Write("idle: dimming to " + _settings.IdlePercent + "% of the current brightness");
             _idleSnapshot = TakeSnapshot();
             _transient = true;
             try
             {
                 foreach (MonitorCard card in _cards)
                 {
-                    if (card.Brightness.Value > _settings.IdlePercent)
-                        card.Brightness.Value = _settings.IdlePercent;
+                    // Relative to where each monitor is now, so a dim monitor gets dimmer too.
+                    card.Brightness.Value = (int)Math.Round(card.Brightness.Value * _settings.IdlePercent / 100.0);
                 }
             }
             finally

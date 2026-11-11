@@ -80,6 +80,8 @@ namespace Brighter
         private int _inputPrevious;
         private int _inputSeconds;
 
+        private readonly DispatcherTimer _retryTimer = new DispatcherTimer();
+        private int _retryCount;
         private bool _sleptAll;
         private int _sleptAllStamp;
         private string _updateVersion;
@@ -184,6 +186,12 @@ namespace Brighter
             _scheduleTimer.Interval = TimeSpan.FromSeconds(30);
             _scheduleTimer.Tick += delegate { CheckSchedule(); };
             _scheduleTimer.Start();
+
+            _retryTimer.Tick += delegate
+            {
+                _retryTimer.Stop();
+                Reload(0);
+            };
 
             _activityTimer.Interval = TimeSpan.FromSeconds(1);
             _activityTimer.Tick += delegate
@@ -626,7 +634,46 @@ namespace Brighter
                 MonitorMemory remembered = FindMemory(device.Id);
                 if (remembered == null) continue;
                 if (remembered.Temperature >= 0) device.Temperature = remembered.Temperature;
-                if (device.Method == ControlMethod.Software) device.SetInitialPercent(remembered.Brightness);
+
+                // A monitor that has taken hardware commands before must never silently drop to the
+                // dimming overlay: show it as "not answering" and keep trying instead.
+                if (device.Method == ControlMethod.Software && remembered.Hardware)
+                {
+                    device.Method = ControlMethod.None;
+                    device.Detail = device.Detail.Replace(L.Software, L.NoAnswer);
+                    Log.Write("ddc: " + device.Name + " did not answer, will retry");
+                }
+                if (device.Method != ControlMethod.Ddc && device.Method != ControlMethod.Wmi)
+                    device.SetInitialPercent(remembered.Brightness);
+            }
+
+            bool waiting = false;
+            foreach (MonitorDevice device in _devices)
+            {
+                if (device.Method == ControlMethod.None) waiting = true;
+                if (device.Method != ControlMethod.Ddc) continue;
+                MonitorMemory memory = FindMemory(device.Id);
+                if (memory == null)
+                {
+                    Remember(device);
+                    memory = FindMemory(device.Id);
+                }
+                if (memory != null && !memory.Hardware)
+                {
+                    memory.Hardware = true;
+                    SaveSoon();
+                }
+            }
+            _retryTimer.Stop();
+            if (waiting)
+            {
+                _retryCount++;
+                _retryTimer.Interval = TimeSpan.FromSeconds(_retryCount <= 10 ? 6 : 30);
+                _retryTimer.Start();
+            }
+            else
+            {
+                _retryCount = 0;
             }
 
             BuildMonitorView();
@@ -848,6 +895,14 @@ namespace Brighter
                 body.Children.Add(note);
             }
 
+            if (device.Method == ControlMethod.None)
+            {
+                TextBlock warning = MakeText(L.NotResponding, 11.5, Theme.Accent, FontWeights.Normal);
+                warning.TextWrapping = TextWrapping.Wrap;
+                warning.Margin = new Thickness(0, 10, 0, 0);
+                body.Children.Add(warning);
+            }
+
             MonitorCard card = new MonitorCard();
             card.Device = device;
 
@@ -865,6 +920,11 @@ namespace Brighter
                 Remember(device);
             };
             card.Brightness = brightness;
+            if (device.Method == ControlMethod.None)
+            {
+                brightness.IsEnabled = false;
+                brightness.Opacity = 0.35;
+            }
 
             // Contrast
             if (device.HasContrast)
@@ -1093,7 +1153,7 @@ namespace Brighter
 
         private void Remember(MonitorDevice device)
         {
-            if (_transient) return;
+            if (_transient || device.Method == ControlMethod.None) return;
             MonitorMemory memory = FindMemory(device.Id);
             if (memory == null)
             {

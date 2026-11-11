@@ -32,6 +32,7 @@ namespace Brighter
     public class MonitorMemory
     {
         public string MonitorId = "";
+        public bool Hardware; // this monitor has answered DDC/CI before
         public int Brightness;
         public int Contrast = -1;
         public int Temperature = -1;

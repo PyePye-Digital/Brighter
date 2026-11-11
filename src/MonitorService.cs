@@ -90,7 +90,7 @@ namespace Brighter
                     {
                         uint current;
                         uint max;
-                        if (TryReadVcp(handle, VcpBrightness, 3, out current, out max))
+                        if (TryReadVcp(handle, VcpBrightness, 6, out current, out max))
                         {
                             method = ControlMethod.Ddc;
                             rawMax = max;
@@ -216,7 +216,7 @@ namespace Brighter
                     if (current > max) current = max;
                     return true;
                 }
-                Thread.Sleep(40);
+                Thread.Sleep(80);
             }
             return false;
         }

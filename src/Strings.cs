@@ -27,6 +27,8 @@ namespace Brighter
         public static string BuiltInDisplay { get { return T("Dahili ekran", "Built-in display"); } }
         public static string Software { get { return T("Yazılımsal", "Software"); } }
         public static string SoftwareNote { get { return T("Bu monitör parlaklık komutlarına yanıt vermiyor (DDC/CI kapalı olabilir); parlaklık ekranın üstüne koyu bir katman çizilerek azaltılıyor.", "This monitor does not answer brightness commands (DDC/CI may be off); brightness is lowered by drawing a dark layer over the screen."); } }
+        public static string NoAnswer { get { return T("Yanıt yok", "No answer"); } }
+        public static string NotResponding { get { return T("Bu monitör şu an komutlara yanıt vermiyor; birkaç saniyede bir tekrar deneniyor. Monitörün kendi menüsü açıksa kapat, aynı işi yapan başka bir program (ör. Twinkle Tray) çalışıyorsa kapat.", "This monitor is not answering right now; retrying every few seconds. Close the monitor's own menu if it is open, and quit other tools doing the same job (e.g. Twinkle Tray)."); } }
         public static string Brightness { get { return T("Parlaklık", "Brightness"); } }
         public static string Contrast { get { return T("Kontrast", "Contrast"); } }
         public static string Temperature { get { return T("Sıcaklık", "Warmth"); } }

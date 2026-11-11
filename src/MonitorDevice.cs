@@ -262,8 +262,9 @@ namespace Brighter
 
         private string ReadCapabilities()
         {
-            // The capabilities request is the flakiest DDC/CI call there is; give it a few tries.
-            for (int attempt = 0; attempt < 3; attempt++)
+            // One attempt only, on purpose: the capabilities request is the heaviest DDC/CI call, and
+            // repeating it has been seen to leave a monitor's DDC/CI unresponsive until it is power-cycled.
+            for (int attempt = 0; attempt < 1; attempt++)
             {
                 try
                 {
@@ -288,7 +289,6 @@ namespace Brighter
                     Log.Error("capabilities", error);
                     return "";
                 }
-                Thread.Sleep(150);
             }
             Log.Write("ddc: " + Name + " did not report its capabilities; using the common input list");
             return "";

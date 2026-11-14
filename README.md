@@ -18,7 +18,7 @@ Bağlı her monitörün parlaklığını, kontrastını, renk sıcaklığını v
 - Brightness, contrast and speaker volume sliders (whatever the monitor supports), with 0 / 25 / 50 / 75 / 100 % presets
 - Colour temperature (warmth) from 6500 K down to 3400 K — works on every display
 - Input source switching (HDMI / DisplayPort / DVI / VGA / USB-C): a software KVM for monitors shared by two machines. The previous input comes back after 12 seconds unless you confirm
-- Sleep / wake button
+- Turn a monitor off and on again, and a "refresh" button that switches its connection off for a few seconds (both done from the Windows side, so they work on monitors that ignore DDC/CI)
 - Real monitor name, connector type, resolution and refresh rate
 - Software dimming as a fallback for monitors that ignore brightness commands
 
@@ -113,6 +113,7 @@ Settings live in `%APPDATA%\Brighter\settings.xml`.
 | `src/MonitorService.cs` | Finds monitors and decides how each is controlled |
 | `src/MonitorDevice.cs` | One monitor: brightness, contrast, volume, input and power |
 | `src/DisplayConfig.cs` | Monitor names, connector type, resolution |
+| `src/DisplayPower.cs` | Turning a display off / on / refreshing it by detaching and re-attaching it |
 | `src/DisplayLayout.cs` | Reading / applying the arrangement and the drag-and-drop editor |
 | `src/GammaRamp.cs` | Colour temperature |
 | `src/Overlays.cs` | On-screen level indicator and the software-dimming layer |

@@ -38,6 +38,15 @@ namespace Brighter
         public int Temperature = -1;
     }
 
+    /// <summary>Mode and position of one display, kept so a display that was turned off can come back.</summary>
+    public class SavedDisplay
+    {
+        public string DeviceName = "";
+        public string Label = "";
+        public bool Primary;
+        public byte[] Mode; // raw DEVMODEW
+    }
+
     /// <summary>"While this program is in the foreground, use this profile."</summary>
     public class AppRule
     {
@@ -69,6 +78,11 @@ namespace Brighter
         public bool IdleEnabled;
         public int IdleMinutes = 5;
         public int IdlePercent = 10;
+
+        // Displays turned off from the app, and the arrangement to return to when they are turned on.
+        public List<SavedDisplay> DisplaySnapshot = new List<SavedDisplay>();
+        public List<string> OffDisplays = new List<string>();
+        public bool RefreshPending;
 
         public List<AppRule> AppRules = new List<AppRule>();
         public List<ProfileData> Profiles = new List<ProfileData>();
@@ -119,6 +133,8 @@ namespace Brighter
             if (settings.Profiles == null) settings.Profiles = new List<ProfileData>();
             if (settings.Monitors == null) settings.Monitors = new List<MonitorMemory>();
             if (settings.AppRules == null) settings.AppRules = new List<AppRule>();
+            if (settings.DisplaySnapshot == null) settings.DisplaySnapshot = new List<SavedDisplay>();
+            if (settings.OffDisplays == null) settings.OffDisplays = new List<string>();
             if (settings.DayTime == null) settings.DayTime = "07:00";
             if (settings.NightTime == null) settings.NightTime = "20:00";
             if (settings.DayProfile == null) settings.DayProfile = "";

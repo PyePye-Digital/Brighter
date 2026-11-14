@@ -81,6 +81,7 @@ namespace Brighter
         private int _inputSeconds;
 
         private readonly DispatcherTimer _retryTimer = new DispatcherTimer();
+        private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
         private readonly Dictionary<string, int> _fallbackLevels = new Dictionary<string, int>();
         private int _retryCount;
         private bool _sleptAll;
@@ -188,6 +189,13 @@ namespace Brighter
             _scheduleTimer.Tick += delegate { CheckSchedule(); };
             _scheduleTimer.Start();
 
+            _refreshTimer.Interval = TimeSpan.FromSeconds(4);
+            _refreshTimer.Tick += delegate
+            {
+                _refreshTimer.Stop();
+                TurnOnDisplays();
+            };
+
             _retryTimer.Tick += delegate
             {
                 _retryTimer.Stop();
@@ -245,6 +253,9 @@ namespace Brighter
 
             BuildSettingsView();
             Reload(0);
+
+            // The app was closed in the middle of a display refresh: bring the display back.
+            if (_settings.RefreshPending) TurnOnDisplays();
 
             UpdateChecker.CheckAsync(delegate(string newer)
             {
@@ -679,6 +690,23 @@ namespace Brighter
                 old.Dispose();
             _devices = found;
 
+            // A display we turned off that is active again was switched on some other way.
+            bool offChanged = false;
+            foreach (MonitorDevice device in _devices)
+            {
+                for (int k = _settings.OffDisplays.Count - 1; k >= 0; k--)
+                {
+                    if (!string.Equals(_settings.OffDisplays[k], device.GdiName, StringComparison.OrdinalIgnoreCase)) continue;
+                    _settings.OffDisplays.RemoveAt(k);
+                    offChanged = true;
+                }
+            }
+            if (offChanged)
+            {
+                if (_settings.OffDisplays.Count == 0 && !_settings.RefreshPending) _settings.DisplaySnapshot.Clear();
+                SettingsStore.Save(_settings);
+            }
+
             bool waiting = false;
             foreach (MonitorDevice device in _devices)
             {
@@ -842,6 +870,8 @@ namespace Brighter
                 _monitorPanel.Children.Add(BuildMasterCard(AverageBrightness()));
             foreach (UIElement element in elements)
                 _monitorPanel.Children.Add(element);
+            foreach (string offName in _settings.OffDisplays)
+                _monitorPanel.Children.Add(BuildOffCard(offName));
 
             _monitorStatus = L.Status(_devices.Count);
             UpdateStatus();
@@ -1064,34 +1094,36 @@ namespace Brighter
             footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             footer.Children.Add(BuildPresets(brightness));
 
+            StackPanel actions = new StackPanel();
+            actions.Orientation = Orientation.Horizontal;
+            actions.Margin = new Thickness(0, 10, 0, 0);
+
             if (device.IsDdc)
             {
-                StackPanel actions = new StackPanel();
-                actions.Orientation = Orientation.Horizontal;
-                actions.Margin = new Thickness(0, 10, 0, 0);
-
                 FlatButton inputButton = MakeChip(L.Input, Theme.Text);
                 inputButton.ToolTip = L.InputTip;
                 inputButton.Click += delegate { OpenInputMenu(device, inputButton); };
                 actions.Children.Add(inputButton);
-
-                FlatButton powerButton = new FlatButton("\uE7E8", Theme.Icons, 12, Theme.Muted, Theme.Chip, Theme.ChipHover);
-                powerButton.Width = 34;
-                powerButton.CornerRadius = new CornerRadius(9);
-                powerButton.Margin = new Thickness(6, 0, 0, 0);
-                powerButton.ToolTip = L.PowerTip;
-                if (device.PoweredOff) powerButton.Label.Foreground = Theme.Accent;
-                powerButton.Click += delegate
-                {
-                    bool turnOff = !device.PoweredOff;
-                    device.SetPower(!turnOff);
-                    powerButton.Label.Foreground = turnOff ? Theme.Accent : Theme.Muted;
-                };
-                actions.Children.Add(powerButton);
-
-                Grid.SetColumn(actions, 1);
-                footer.Children.Add(actions);
             }
+
+            FlatButton refreshButton = new FlatButton("\uE72C", Theme.Icons, 12, Theme.Muted, Theme.Chip, Theme.ChipHover);
+            refreshButton.Width = 34;
+            refreshButton.CornerRadius = new CornerRadius(9);
+            refreshButton.Margin = new Thickness(6, 0, 0, 0);
+            refreshButton.ToolTip = L.RefreshDisplayTip;
+            refreshButton.Click += delegate { RefreshDisplay(device); };
+            actions.Children.Add(refreshButton);
+
+            FlatButton powerButton = new FlatButton("\uE7E8", Theme.Icons, 12, Theme.Muted, Theme.Chip, Theme.ChipHover);
+            powerButton.Width = 34;
+            powerButton.CornerRadius = new CornerRadius(9);
+            powerButton.Margin = new Thickness(6, 0, 0, 0);
+            powerButton.ToolTip = L.TurnOffTip;
+            powerButton.Click += delegate { TurnOffDisplay(device); };
+            actions.Children.Add(powerButton);
+
+            Grid.SetColumn(actions, 1);
+            footer.Children.Add(actions);
             body.Children.Add(footer);
             return WrapCard(body);
         }
@@ -1508,6 +1540,120 @@ namespace Brighter
             if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 name = name.Substring(0, name.Length - 4);
             return name;
+        }
+
+        // ------------------------------------------------------------------ display on / off / refresh
+
+        private int ActiveDisplayCount()
+        {
+            List<string> names = new List<string>();
+            foreach (MonitorDevice device in _devices)
+            {
+                if (device.GdiName.Length > 0 && !names.Contains(device.GdiName)) names.Add(device.GdiName);
+            }
+            return names.Count;
+        }
+
+        private void ShowNotice(string text)
+        {
+            _monitorStatus = text;
+            UpdateStatus();
+        }
+
+        /// <summary>Turns a display off by detaching it from the Windows desktop. False when it could not be done.</summary>
+        private bool TurnOffDisplay(MonitorDevice device)
+        {
+            if (ActiveDisplayCount() < 2)
+            {
+                ShowNotice(L.NeedTwoDisplays);
+                return false;
+            }
+
+            List<SavedDisplay> active = DisplayPower.Capture(_devices);
+            if (_settings.OffDisplays.Count == 0) _settings.DisplaySnapshot = active;
+
+            Log.Write("display: turning off " + device.Name);
+            if (!DisplayPower.Detach(active, device.GdiName))
+            {
+                if (_settings.OffDisplays.Count == 0) _settings.DisplaySnapshot = new List<SavedDisplay>();
+                ShowNotice(L.DisplayChangeFailed);
+                return false;
+            }
+            _settings.OffDisplays.Add(device.GdiName);
+            SettingsStore.Save(_settings); // straight away: this must survive a crash
+            return true;
+        }
+
+        /// <summary>Brings back every display that was turned off, exactly as it was arranged.</summary>
+        private void TurnOnDisplays()
+        {
+            _refreshTimer.Stop();
+            if (_settings.DisplaySnapshot.Count == 0)
+            {
+                _settings.OffDisplays.Clear();
+                _settings.RefreshPending = false;
+                return;
+            }
+            Log.Write("display: turning on");
+            bool ok = DisplayPower.Restore(_settings.DisplaySnapshot);
+            _settings.OffDisplays.Clear();
+            _settings.RefreshPending = false;
+            _settings.DisplaySnapshot = new List<SavedDisplay>();
+            SettingsStore.Save(_settings);
+            if (!ok) ShowNotice(L.DisplayChangeFailed);
+            Reload(1500);
+        }
+
+        /// <summary>Off, a few seconds, on again: makes the graphics card and the monitor renegotiate the connection.</summary>
+        private void RefreshDisplay(MonitorDevice device)
+        {
+            if (_settings.OffDisplays.Count > 0 || _refreshTimer.IsEnabled) return;
+            if (!TurnOffDisplay(device)) return;
+            _settings.RefreshPending = true;
+            SettingsStore.Save(_settings);
+            _refreshTimer.Start();
+        }
+
+        private UIElement BuildOffCard(string deviceName)
+        {
+            string label = deviceName;
+            foreach (SavedDisplay saved in _settings.DisplaySnapshot)
+            {
+                if (string.Equals(saved.DeviceName, deviceName, StringComparison.OrdinalIgnoreCase) && saved.Label.Length > 0) label = saved.Label;
+            }
+
+            Grid row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            Border badge = MakeBadge();
+            TextBlock glyph = new TextBlock();
+            glyph.Text = "\uE7E8";
+            glyph.FontFamily = Theme.Icons;
+            glyph.FontSize = 15;
+            glyph.Foreground = Theme.Muted;
+            glyph.HorizontalAlignment = HorizontalAlignment.Center;
+            glyph.VerticalAlignment = VerticalAlignment.Center;
+            badge.Child = glyph;
+            row.Children.Add(badge);
+
+            StackPanel titles = new StackPanel();
+            titles.Margin = new Thickness(12, 0, 10, 0);
+            titles.VerticalAlignment = VerticalAlignment.Center;
+            titles.Children.Add(MakeText(label, 14.5, Theme.Text, FontWeights.SemiBold));
+            titles.Children.Add(MakeText(_settings.RefreshPending ? L.Refreshing : L.DisplayOff, 12, Theme.Muted, FontWeights.Normal));
+            Grid.SetColumn(titles, 1);
+            row.Children.Add(titles);
+
+            if (!_settings.RefreshPending)
+            {
+                FlatButton turnOn = MakeChip(L.TurnOn, Theme.Accent);
+                turnOn.Click += delegate { TurnOnDisplays(); };
+                Grid.SetColumn(turnOn, 2);
+                row.Children.Add(turnOn);
+            }
+            return WrapCard(row);
         }
 
         // ------------------------------------------------------------------ confirmations / sleep

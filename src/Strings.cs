@@ -109,6 +109,13 @@ namespace Brighter
 
         // Confirmations, tray, about
         public static string Current { get { return T("şu anki", "current"); } }
+        public static string RefreshDisplayTip { get { return T("Ekranı yenile: bağlantıyı birkaç saniyeliğine kapatıp açar", "Refresh display: switches the connection off and on again"); } }
+        public static string TurnOffTip { get { return T("Monitörü kapat", "Turn monitor off"); } }
+        public static string TurnOn { get { return T("Aç", "Turn on"); } }
+        public static string DisplayOff { get { return T("Kapalı", "Off"); } }
+        public static string Refreshing { get { return T("Yenileniyor…", "Refreshing…"); } }
+        public static string NeedTwoDisplays { get { return T("Bunun için en az iki açık ekran gerekir", "This needs at least two active displays"); } }
+        public static string DisplayChangeFailed { get { return T("Windows ekran değişikliğini kabul etmedi", "Windows rejected the display change"); } }
         public static string Keep { get { return T("Koru", "Keep"); } }
         public static string Revert { get { return T("Geri al", "Revert"); } }
         public static string SleepAll { get { return T("Tüm monitörleri uyut", "Sleep all monitors"); } }

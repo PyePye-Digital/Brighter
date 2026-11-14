@@ -145,6 +145,28 @@ namespace Brighter
             return ok;
         }
 
+        /// <summary>Attaches a single display again without touching the others.</summary>
+        public static bool AttachOne(SavedDisplay display)
+        {
+            if (display == null || display.Mode == null || display.Mode.Length != NativeMethods.SizeOfDevMode) return false;
+            IntPtr buffer = Marshal.AllocHGlobal(NativeMethods.SizeOfDevMode);
+            try
+            {
+                Marshal.Copy(display.Mode, 0, buffer, NativeMethods.SizeOfDevMode);
+                bool ok = Stage(display.DeviceName, buffer, NativeMethods.CDS_UPDATEREGISTRY | NativeMethods.CDS_NORESET, "attach");
+                return Commit() && ok;
+            }
+            catch (Exception error)
+            {
+                Log.Error("display attach", error);
+                return false;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
         private static bool Stage(string deviceName, IntPtr mode, uint flags, string what)
         {
             int result = NativeMethods.ChangeDisplaySettingsEx(deviceName, mode, IntPtr.Zero, flags, IntPtr.Zero);

@@ -116,6 +116,18 @@ namespace Brighter
         public static string Refreshing { get { return T("Yenileniyor…", "Refreshing…"); } }
         public static string NeedTwoDisplays { get { return T("Bunun için en az iki açık ekran gerekir", "This needs at least two active displays"); } }
         public static string DisplayChangeFailed { get { return T("Windows ekran değişikliğini kabul etmedi", "Windows rejected the display change"); } }
+        public static string NoOffMonitors { get { return T("Kapalı monitör yok. Bir monitörü kapatmak için \"Açık\" sekmesindeki kartında güç butonuna bas; kapattıkların burada listelenir.", "No monitors are off. Use the power button on a card in the \"On\" tab; the ones you turn off are listed here."); } }
+
+        public static string TabOn(int count)
+        {
+            return T("Açık monitörler (" + count + ")", "On (" + count + ")");
+        }
+
+        public static string TabOff(int count)
+        {
+            return T("Kapalı monitörler (" + count + ")", "Off (" + count + ")");
+        }
+
         public static string Keep { get { return T("Koru", "Keep"); } }
         public static string Revert { get { return T("Geri al", "Revert"); } }
         public static string SleepAll { get { return T("Tüm monitörleri uyut", "Sleep all monitors"); } }

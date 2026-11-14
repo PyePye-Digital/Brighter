@@ -84,6 +84,7 @@ namespace Brighter
         private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
         private readonly Dictionary<string, int> _fallbackLevels = new Dictionary<string, int>();
         private int _retryCount;
+        private bool _showOffTab;
         private bool _sleptAll;
         private int _sleptAllStamp;
         private string _updateVersion;
@@ -704,6 +705,7 @@ namespace Brighter
             if (offChanged)
             {
                 if (_settings.OffDisplays.Count == 0 && !_settings.RefreshPending) _settings.DisplaySnapshot.Clear();
+                if (_settings.OffDisplays.Count == 0) _showOffTab = false;
                 SettingsStore.Save(_settings);
             }
 
@@ -854,27 +856,81 @@ namespace Brighter
             if (_settings.Profiles.Count > 0)
                 _monitorPanel.Children.Add(BuildProfileChips());
 
-            if (_devices.Count == 0)
-            {
-                TextBlock empty = MakeText(L.NoMonitors, 13, Theme.Muted, FontWeights.Normal);
-                empty.Margin = new Thickness(4, 12, 4, 20);
-                _monitorPanel.Children.Add(empty);
-            }
-
-            // Cards are built first so the master slider can drive their sliders.
+            // The cards of the active monitors are always built, even while the "off" tab is showing:
+            // shortcuts, profiles and the idle dimmer work through their sliders.
             List<UIElement> elements = new List<UIElement>();
             foreach (MonitorDevice device in _devices)
                 elements.Add(BuildMonitorCard(device));
+            UIElement master = _cards.Count >= 2 ? BuildMasterCard(AverageBrightness()) : null;
 
-            if (_cards.Count >= 2)
-                _monitorPanel.Children.Add(BuildMasterCard(AverageBrightness()));
-            foreach (UIElement element in elements)
-                _monitorPanel.Children.Add(element);
-            foreach (string offName in _settings.OffDisplays)
-                _monitorPanel.Children.Add(BuildOffCard(offName));
+            _monitorPanel.Children.Add(BuildTabs());
+
+            if (_showOffTab)
+            {
+                if (_settings.OffDisplays.Count == 0)
+                {
+                    TextBlock none = MakeText(L.NoOffMonitors, 13, Theme.Muted, FontWeights.Normal);
+                    none.TextWrapping = TextWrapping.Wrap;
+                    none.Margin = new Thickness(4, 12, 4, 20);
+                    _monitorPanel.Children.Add(none);
+                }
+                foreach (string offName in _settings.OffDisplays)
+                    _monitorPanel.Children.Add(BuildOffCard(offName));
+            }
+            else
+            {
+                if (_devices.Count == 0)
+                {
+                    TextBlock empty = MakeText(L.NoMonitors, 13, Theme.Muted, FontWeights.Normal);
+                    empty.Margin = new Thickness(4, 12, 4, 20);
+                    _monitorPanel.Children.Add(empty);
+                }
+                if (master != null) _monitorPanel.Children.Add(master);
+                foreach (UIElement element in elements)
+                    _monitorPanel.Children.Add(element);
+            }
 
             _monitorStatus = L.Status(_devices.Count);
             UpdateStatus();
+        }
+
+        /// <summary>"On" and "Off" tabs: active monitors with their controls, and the ones turned off from here.</summary>
+        private UIElement BuildTabs()
+        {
+            Grid row = new Grid();
+            row.Margin = new Thickness(0, 0, 0, 10);
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            FlatButton on = MakeTab(L.TabOn(_devices.Count), !_showOffTab);
+            on.Margin = new Thickness(0, 0, 3, 0);
+            on.Click += delegate
+            {
+                _showOffTab = false;
+                BuildMonitorView();
+            };
+            row.Children.Add(on);
+
+            FlatButton off = MakeTab(L.TabOff(_settings.OffDisplays.Count), _showOffTab);
+            off.Margin = new Thickness(3, 0, 0, 0);
+            off.Click += delegate
+            {
+                _showOffTab = true;
+                BuildMonitorView();
+            };
+            Grid.SetColumn(off, 1);
+            row.Children.Add(off);
+            return row;
+        }
+
+        private static FlatButton MakeTab(string text, bool selected)
+        {
+            FlatButton tab = new FlatButton(text, Theme.Ui, 12.5, selected ? Theme.Accent : Theme.Muted,
+                selected ? Theme.ChipHover : Theme.Chip, Theme.ChipHover);
+            tab.Padding = new Thickness(12, 7, 12, 8);
+            tab.CornerRadius = new CornerRadius(10);
+            if (selected) tab.Label.FontWeight = FontWeights.SemiBold;
+            return tab;
         }
 
         private UIElement BuildProfileChips()
@@ -1581,6 +1637,7 @@ namespace Brighter
             }
             _settings.OffDisplays.Add(device.GdiName);
             SettingsStore.Save(_settings); // straight away: this must survive a crash
+            _showOffTab = true; // show where the monitor went, with its "turn on" button
             return true;
         }
 
@@ -1596,11 +1653,37 @@ namespace Brighter
             }
             Log.Write("display: turning on");
             bool ok = DisplayPower.Restore(_settings.DisplaySnapshot);
+            _showOffTab = false;
             _settings.OffDisplays.Clear();
             _settings.RefreshPending = false;
             _settings.DisplaySnapshot = new List<SavedDisplay>();
             SettingsStore.Save(_settings);
             if (!ok) ShowNotice(L.DisplayChangeFailed);
+            Reload(1500);
+        }
+
+        /// <summary>Turns one display back on. With a single display off this restores the whole saved arrangement.</summary>
+        private void TurnOnDisplay(string deviceName)
+        {
+            if (_settings.OffDisplays.Count <= 1)
+            {
+                TurnOnDisplays();
+                return;
+            }
+
+            SavedDisplay saved = null;
+            foreach (SavedDisplay display in _settings.DisplaySnapshot)
+            {
+                if (string.Equals(display.DeviceName, deviceName, StringComparison.OrdinalIgnoreCase)) saved = display;
+            }
+            Log.Write("display: turning on " + deviceName);
+            if (saved == null || !DisplayPower.AttachOne(saved))
+            {
+                ShowNotice(L.DisplayChangeFailed);
+                return;
+            }
+            _settings.OffDisplays.Remove(deviceName);
+            SettingsStore.Save(_settings);
             Reload(1500);
         }
 
@@ -1649,7 +1732,7 @@ namespace Brighter
             if (!_settings.RefreshPending)
             {
                 FlatButton turnOn = MakeChip(L.TurnOn, Theme.Accent);
-                turnOn.Click += delegate { TurnOnDisplays(); };
+                turnOn.Click += delegate { TurnOnDisplay(deviceName); };
                 Grid.SetColumn(turnOn, 2);
                 row.Children.Add(turnOn);
             }

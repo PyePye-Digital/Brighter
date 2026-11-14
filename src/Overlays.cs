@@ -151,6 +151,11 @@ namespace Brighter
             };
         }
 
+        public bool Covers(NativeMethods.RECT bounds)
+        {
+            return bounds.Left == _bounds.Left && bounds.Top == _bounds.Top && bounds.Right == _bounds.Right && bounds.Bottom == _bounds.Bottom;
+        }
+
         /// <summary>100 = no dimming, 0 = darkest.</summary>
         public void SetLevel(int percent)
         {

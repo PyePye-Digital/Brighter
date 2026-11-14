@@ -81,6 +81,7 @@ namespace Brighter
         private int _inputSeconds;
 
         private readonly DispatcherTimer _retryTimer = new DispatcherTimer();
+        private readonly Dictionary<string, int> _fallbackLevels = new Dictionary<string, int>();
         private int _retryCount;
         private bool _sleptAll;
         private int _sleptAllStamp;
@@ -190,7 +191,7 @@ namespace Brighter
             _retryTimer.Tick += delegate
             {
                 _retryTimer.Stop();
-                Reload(0);
+                Reload(0, true);
             };
 
             _activityTimer.Interval = TimeSpan.FromSeconds(1);
@@ -592,14 +593,23 @@ namespace Brighter
 
         private void Reload(int delayMs)
         {
+            Reload(delayMs, false);
+        }
+
+        /// <param name="retry">A background re-probe of a silent monitor: must not disturb the UI unless something changed.</param>
+        private void Reload(int delayMs, bool retry)
+        {
             if (_loading)
             {
-                _reloadQueued = true;
+                if (!retry) _reloadQueued = true;
                 return;
             }
             _loading = true;
-            _monitorStatus = L.Scanning;
-            UpdateStatus();
+            if (!retry)
+            {
+                _monitorStatus = L.Scanning;
+                UpdateStatus();
+            }
 
             ThreadPool.QueueUserWorkItem(delegate(object state)
             {
@@ -614,44 +624,73 @@ namespace Brighter
                     Log.Error("enumerate", error);
                     found = new List<MonitorDevice>();
                 }
-                Dispatcher.BeginInvoke(new Action(delegate { ShowDevices(found); }));
+                Dispatcher.BeginInvoke(new Action(delegate { ShowDevices(found, retry); }));
             });
         }
 
-        private void ShowDevices(List<MonitorDevice> found)
+        private void ShowDevices(List<MonitorDevice> found, bool retry)
         {
-            foreach (MonitorDevice old in _devices)
-                old.Dispose();
-            CloseOverlays();
-            _devices = found;
-            foreach (MonitorDevice device in _devices)
-                Log.Write("monitor " + device.Index + ": " + device.Name + " [" + device.Connection + "] " + device.Method + (device.HasContrast ? " +contrast" : "") + (device.HasVolume ? " +volume" : ""));
-
-            // Colour temperature and software dimming exist only inside this app, so they always
-            // start from the remembered value.
-            foreach (MonitorDevice device in _devices)
+            // Work out how each monitor is controlled before touching the current list.
+            foreach (MonitorDevice device in found)
             {
                 MonitorMemory remembered = FindMemory(device.Id);
                 if (remembered == null) continue;
+
+                // Colour temperature exists only inside this app, so it starts from the remembered value.
                 if (remembered.Temperature >= 0) device.Temperature = remembered.Temperature;
 
-                // A monitor that has taken hardware commands before must never silently drop to the
-                // dimming overlay: show it as "not answering" and keep trying instead.
+                // A monitor that has taken hardware commands before is never treated as a plain
+                // software monitor: it is "not answering", and gets re-probed.
                 if (device.Method == ControlMethod.Software && remembered.Hardware)
                 {
                     device.Method = ControlMethod.None;
                     device.Detail = device.Detail.Replace(L.Software, L.NoAnswer);
-                    Log.Write("ddc: " + device.Name + " did not answer, will retry");
                 }
-                if (device.Method != ControlMethod.Ddc && device.Method != ControlMethod.Wmi)
+
+                if (device.Method == ControlMethod.Software)
+                {
                     device.SetInitialPercent(remembered.Brightness);
+                }
+                else if (device.Method == ControlMethod.None)
+                {
+                    // The slider drives a temporary dimming layer here; 100 means no extra dimming.
+                    int fallback;
+                    device.SetInitialPercent(_fallbackLevels.TryGetValue(device.Id, out fallback) ? fallback : 100);
+                }
             }
+
+            // A re-probe that found nothing new leaves everything as it is, so an open slider drag
+            // or a typed value is not thrown away every few seconds.
+            if (retry && SameShape(found, _devices))
+            {
+                foreach (MonitorDevice fresh in found)
+                    fresh.Dispose();
+                _loading = false;
+                ScheduleRetry(true);
+                if (_reloadQueued)
+                {
+                    _reloadQueued = false;
+                    Reload(300);
+                }
+                return;
+            }
+
+            foreach (MonitorDevice old in _devices)
+                old.Dispose();
+            _devices = found;
 
             bool waiting = false;
             foreach (MonitorDevice device in _devices)
             {
-                if (device.Method == ControlMethod.None) waiting = true;
+                Log.Write("monitor " + device.Index + ": " + device.Name + " [" + device.Connection + "] " + device.Method + (device.HasContrast ? " +contrast" : "") + (device.HasVolume ? " +volume" : ""));
+                if (device.Method == ControlMethod.None)
+                {
+                    waiting = true;
+                    Log.Write("ddc: " + device.Name + " did not answer, will keep retrying");
+                }
                 if (device.Method != ControlMethod.Ddc) continue;
+
+                _fallbackLevels.Remove(device.Id); // hardware is back: the temporary dimming goes away
                 MonitorMemory memory = FindMemory(device.Id);
                 if (memory == null)
                 {
@@ -664,26 +703,15 @@ namespace Brighter
                     SaveSoon();
                 }
             }
-            _retryTimer.Stop();
-            if (waiting)
-            {
-                _retryCount++;
-                _retryTimer.Interval = TimeSpan.FromSeconds(_retryCount <= 10 ? 6 : 30);
-                _retryTimer.Start();
-            }
-            else
-            {
-                _retryCount = 0;
-            }
+            ScheduleRetry(waiting);
 
             BuildMonitorView();
+            SyncOverlays();
 
             foreach (MonitorCard card in _cards)
             {
                 MonitorDevice device = card.Device;
                 if (device.Temperature < 100) GammaRamp.Apply(device.GdiName, device.Temperature);
-                if (device.Method == ControlMethod.Software && device.Percent < 100)
-                    GetOverlay(device).SetLevel(device.Percent);
             }
 
             // A monitor that was not there a moment ago gets its remembered values back.
@@ -693,6 +721,7 @@ namespace Brighter
                 string id = card.Device.Id;
                 present.Add(id);
                 if (_firstLoad || !_settings.RestoreOnConnect || _knownIds.Contains(id)) continue;
+                if (card.Device.Method == ControlMethod.None) continue;
                 MonitorMemory memory = FindMemory(id);
                 if (memory == null) continue;
                 ApplyValues(card, memory.Brightness, memory.Contrast, -1);
@@ -708,6 +737,59 @@ namespace Brighter
             {
                 _reloadQueued = false;
                 Reload(300);
+            }
+        }
+
+        private static bool SameShape(List<MonitorDevice> first, List<MonitorDevice> second)
+        {
+            if (first.Count != second.Count) return false;
+            for (int i = 0; i < first.Count; i++)
+            {
+                if (first[i].Id != second[i].Id || first[i].Method != second[i].Method) return false;
+            }
+            return true;
+        }
+
+        /// <summary>Re-probes silent monitors: every 6 seconds at first, then every 30.</summary>
+        private void ScheduleRetry(bool waiting)
+        {
+            _retryTimer.Stop();
+            if (!waiting)
+            {
+                _retryCount = 0;
+                return;
+            }
+            _retryCount++;
+            _retryTimer.Interval = TimeSpan.FromSeconds(_retryCount <= 10 ? 6 : 30);
+            _retryTimer.Start();
+        }
+
+        /// <summary>Creates, updates and removes the dimming layers so they match the current monitors.</summary>
+        private void SyncOverlays()
+        {
+            HashSet<string> needed = new HashSet<string>();
+            foreach (MonitorDevice device in _devices)
+            {
+                bool software = device.Method == ControlMethod.Software || device.Method == ControlMethod.None;
+                if (!software || device.Percent >= 100) continue;
+                needed.Add(device.Id);
+
+                DimOverlay existing;
+                if (_overlays.TryGetValue(device.Id, out existing) && !existing.Covers(device.Bounds))
+                {
+                    try { existing.Close(); }
+                    catch (Exception) { }
+                    _overlays.Remove(device.Id);
+                }
+                GetOverlay(device).SetLevel(device.Percent);
+            }
+
+            foreach (string id in new List<string>(_overlays.Keys))
+            {
+                if (needed.Contains(id)) continue;
+                try { _overlays[id].Close(); }
+                catch (Exception) { }
+                _overlays.Remove(id);
             }
         }
 
@@ -914,17 +996,20 @@ namespace Brighter
             {
                 int level = brightness.Value;
                 brightnessLabel.Text = level + "%";
+                if (device.Method == ControlMethod.None)
+                {
+                    // Hardware is silent: dim with the overlay for now and remember the level across re-probes.
+                    device.SetInitialPercent(level);
+                    _fallbackLevels[device.Id] = level;
+                    GetOverlay(device).SetLevel(level);
+                    return;
+                }
                 device.RequestPercent(level);
                 if (device.Method == ControlMethod.Software)
                     GetOverlay(device).SetLevel(level);
                 Remember(device);
             };
             card.Brightness = brightness;
-            if (device.Method == ControlMethod.None)
-            {
-                brightness.IsEnabled = false;
-                brightness.Opacity = 0.35;
-            }
 
             // Contrast
             if (device.HasContrast)

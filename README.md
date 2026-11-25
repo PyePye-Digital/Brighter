@@ -15,7 +15,7 @@ Bağlı her monitörün parlaklığını, kontrastını, renk sıcaklığını v
 
 From the [latest release](https://github.com/PyePye-Digital/Brighter/releases/latest):
 
-- **`Brighter-Setup-x.y.z.exe`** (recommended): installs for your user only, no administrator rights. Adds a Start menu shortcut, can start Brighter with Windows, and uninstalls cleanly from *Settings > Apps* (settings, log and the start-up entry go too).
+- **`Brighter-Setup-x.y.z.exe`** (recommended): a regular setup wizard. Installs for all users into Program Files, or only for you without administrator rights; adds a Start menu folder, can start Brighter with Windows, and uninstalls cleanly from *Settings > Apps* (settings, log and the start-up entry go too).
 - **`Brighter.exe`**: portable, just run it. Keep it in a permanent folder if you switch on *Start with Windows*, since that entry points at the exe where it is.
 
 Windows SmartScreen may warn about an unknown publisher the first time, because the files are not code-signed.

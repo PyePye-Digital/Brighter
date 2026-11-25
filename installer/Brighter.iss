@@ -1,5 +1,6 @@
 ﻿; Brighter installer (Inno Setup 6). Built by GitHub Actions for every release;
-; locally: build-installer.bat. Installs per user, no administrator rights needed.
+; locally: build-installer.bat. A classic wizard: welcome, licence, "all users or just me",
+; folder, Start menu folder, options, ready, install, finish.
 
 #ifndef AppVersion
   #define AppVersion "1.0.0"
@@ -18,11 +19,20 @@ AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}/issues
 AppUpdatesURL={#AppUrl}/releases
 VersionInfoVersion={#AppVersion}
-; Per-user install into %LOCALAPPDATA%\Programs\Brighter: no UAC prompt.
-PrivilegesRequired=lowest
+; All users into Program Files (asks for administrator rights) by default; the first page lets
+; the user pick "only for me" instead, which installs into %LOCALAPPDATA%\Programs without UAC.
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=dialog
+UsedUserAreasWarning=no
 DefaultDirName={autopf}\{#AppName}
-DisableProgramGroupPage=yes
-DisableDirPage=auto
+DefaultGroupName={#AppName}
+AllowNoIcons=yes
+DisableWelcomePage=no
+DisableDirPage=no
+DisableProgramGroupPage=no
+DisableReadyPage=no
+DisableFinishedPage=no
+LicenseFile=..\LICENSE
 OutputDir=..\dist
 OutputBaseFilename=Brighter-Setup-{#AppVersion}
 SetupIconFile=..\assets\brighter.ico
@@ -52,7 +62,8 @@ Source: "..\bin\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
+Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
@@ -60,7 +71,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#AppName}"; ValueData: """{app}\{#AppExe}"" --tray"; Tasks: autostart; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [Code]
 // Ask a running copy to quit properly (resets colour temperature, turns monitors back on).

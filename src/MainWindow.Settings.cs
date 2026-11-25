@@ -402,7 +402,26 @@ namespace Brighter
             {
                 _settings.IdlePercent = number;
             })));
+
+            // While a video plays: cycles through the three behaviours on each click.
+            FlatButton media = MakeChip(IdleMediaLabel(_settings.IdleMediaMode), Theme.Accent);
+            media.ToolTip = L.IdleMediaTip;
+            media.Click += delegate
+            {
+                _settings.IdleMediaMode = (_settings.IdleMediaMode + 1) % 3;
+                media.Label.Text = IdleMediaLabel(_settings.IdleMediaMode);
+                _mediaStamps.Clear();
+                SaveSoon();
+            };
+            body.Children.Add(MakeLabeledRow(L.IdleMedia, media));
             return WrapCard(body);
+        }
+
+        private static string IdleMediaLabel(int mode)
+        {
+            if (mode == IdleMediaIgnore) return L.IdleMediaIgnore;
+            if (mode == IdleMediaKeepAll) return L.IdleMediaKeepAll;
+            return L.IdleMediaOnly;
         }
 
         // ------------------------------------------------------------------ per-application profiles

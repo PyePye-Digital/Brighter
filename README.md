@@ -32,7 +32,7 @@ Bağlı her monitörün parlaklığını, kontrastını, renk sıcaklığını v
 
 - Global shortcuts (customisable) with an on-screen level indicator
 - Switch profile by time of day, or at sunrise / sunset for your coordinates
-- Dim when idle, restore on the first key press or mouse move
+- Dim when idle, restore on the first key press or mouse move. While a video plays, only the monitor showing it stays bright (or every monitor, or none — a setting). The video is located from the window of the program making sound, or from a full-screen app
 - Per-application profiles: a profile while a chosen program is in the foreground
 - Remembers each monitor and restores it when it is plugged back in
 
@@ -118,6 +118,7 @@ Settings live in `%APPDATA%\Brighter\settings.xml`.
 | `src/GammaRamp.cs` | Colour temperature |
 | `src/Overlays.cs` | On-screen level indicator and the software-dimming layer |
 | `src/SunTimes.cs` | Sunrise / sunset calculation |
+| `src/ActivityGuard.cs` | Finds where a video is playing (sounding programs' windows, full-screen apps) for the idle dimmer |
 | `src/CommandLine.cs` | Command-line parsing and headless execution |
 | `src/WmiBrightness.cs` | Built-in panel brightness |
 | `src/Settings.cs` | Profiles, schedule, rules and remembered values (XML in AppData) |

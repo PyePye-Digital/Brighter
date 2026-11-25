@@ -78,6 +78,7 @@ namespace Brighter
         public bool IdleEnabled;
         public int IdleMinutes = 5;
         public int IdlePercent = 10;
+        public int IdleMediaMode = 1; // 0 ignore media, 1 keep only the monitor showing it, 2 keep every monitor
 
         // Displays turned off from the app, and the arrangement to return to when they are turned on.
         public List<SavedDisplay> DisplaySnapshot = new List<SavedDisplay>();
@@ -130,6 +131,7 @@ namespace Brighter
             if (settings.HotkeyStep < 1 || settings.HotkeyStep > 50) settings.HotkeyStep = 10;
             if (settings.IdleMinutes < 1) settings.IdleMinutes = 5;
             if (settings.IdlePercent < 0 || settings.IdlePercent > 100) settings.IdlePercent = 10;
+            if (settings.IdleMediaMode < 0 || settings.IdleMediaMode > 2) settings.IdleMediaMode = 1;
             if (settings.Profiles == null) settings.Profiles = new List<ProfileData>();
             if (settings.Monitors == null) settings.Monitors = new List<MonitorMemory>();
             if (settings.AppRules == null) settings.AppRules = new List<AppRule>();

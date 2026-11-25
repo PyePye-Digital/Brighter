@@ -38,6 +38,9 @@ namespace Brighter
         private const int HotkeyAllUp = 3;
         private const int HotkeyAllDown = 4;
         private const int ProfileHotkeyBase = 100;
+        private const int IdleMediaIgnore = 0;
+        private const int IdleMediaOnlyThatMonitor = 1;
+        private const int IdleMediaKeepAll = 2;
 
         private readonly AppSettings _settings;
         private readonly StackPanel _monitorPanel = new StackPanel();
@@ -91,8 +94,10 @@ namespace Brighter
 
         // Automations that change values temporarily must not overwrite what the user chose.
         private bool _transient;
-        private bool _idleDimmed;
-        private Dictionary<string, int[]> _idleSnapshot;
+        // Idle dimming, per monitor: brightness before dimming, and when media last played there.
+        private readonly Dictionary<string, int> _idleDimmed = new Dictionary<string, int>();
+        private readonly Dictionary<string, int> _mediaStamps = new Dictionary<string, int>();
+        private string _mediaReason;
         private AppRule _activeRule;
         private Dictionary<string, int[]> _ruleSnapshot;
         private IntPtr _lastForeground;
@@ -1484,49 +1489,95 @@ namespace Brighter
             if (profile != null) ApplyProfile(profile);
         }
 
-        /// <summary>Dims every monitor after a period without keyboard or mouse input, restores on activity.</summary>
+        /// <summary>
+        /// Dims monitors after a period without keyboard or mouse input and restores them on activity.
+        /// A monitor showing a video (or anything playing) counts as in use, depending on the setting:
+        /// only that monitor stays bright, every monitor stays bright, or media is ignored.
+        /// </summary>
         private void CheckIdle()
         {
             NativeMethods.LASTINPUTINFO info = new NativeMethods.LASTINPUTINFO();
             info.cbSize = 8;
             if (!NativeMethods.GetLastInputInfo(ref info)) return;
             uint idleMs = unchecked((uint)Environment.TickCount - info.dwTime);
+            int now = Environment.TickCount;
 
-            if (_idleDimmed)
+            if (!_settings.IdleEnabled || idleMs < 3000)
             {
-                if (idleMs < 3000 || !_settings.IdleEnabled)
-                {
-                    Log.Write("idle: restoring");
-                    _transient = true;
-                    try { RestoreSnapshot(_idleSnapshot); }
-                    finally { _transient = false; }
-                    _idleSnapshot = null;
-                    _idleDimmed = false;
-                }
+                if (_idleDimmed.Count > 0) RestoreIdle(null, _settings.IdleEnabled ? "activity" : "turned off");
                 return;
             }
+            if (_cards.Count == 0 || idleMs < 5000) return;
 
-            if (!_settings.IdleEnabled || _cards.Count == 0) return;
+            MediaState media = null;
+            if (_settings.IdleMediaMode != IdleMediaIgnore)
+            {
+                media = ActivityGuard.Check();
+                string reason = media.Active ? media.Reason : null;
+                if (reason != null && reason != _mediaReason) Log.Write("idle: media playing, " + reason);
+                _mediaReason = reason;
+            }
+
             uint limitMs = (uint)Math.Max(1, _settings.IdleMinutes) * 60000u;
-            if (idleMs < limitMs) return;
+            foreach (MonitorCard card in new List<MonitorCard>(_cards))
+            {
+                string id = card.Device.Id;
+                bool playingHere = media != null && media.Active &&
+                    (_settings.IdleMediaMode == IdleMediaKeepAll || media.Unlocated || media.Monitors.Contains(card.Device.HMonitor));
+                if (playingHere) _mediaStamps[id] = now;
 
-            Log.Write("idle: dimming to " + _settings.IdlePercent + "%");
-            _idleSnapshot = TakeSnapshot();
+                // The countdown of a monitor restarts from the moment something stopped playing on it.
+                uint effective = idleMs;
+                int stamp;
+                if (_mediaStamps.TryGetValue(id, out stamp))
+                {
+                    uint since = unchecked((uint)(now - stamp));
+                    if (since < effective) effective = since;
+                }
+
+                bool dimmed = _idleDimmed.ContainsKey(id);
+                if (dimmed && playingHere) RestoreIdle(card, "media started");
+                else if (!dimmed && effective >= limitMs) DimIdle(card);
+            }
+        }
+
+        private void DimIdle(MonitorCard card)
+        {
+            _idleDimmed[card.Device.Id] = card.Brightness.Value;
+            if (card.Brightness.Value <= _settings.IdlePercent) return; // already dimmer than that
+            Log.Write("idle: dimming " + card.Device.Name + " to " + _settings.IdlePercent + "%");
+            _transient = true;
+            try { card.Brightness.Value = _settings.IdlePercent; }
+            finally { _transient = false; }
+        }
+
+        /// <summary>Puts dimmed monitors back; <paramref name="only"/> null means all of them.</summary>
+        private void RestoreIdle(MonitorCard only, string why)
+        {
+            List<string> ids = new List<string>(_idleDimmed.Keys);
             _transient = true;
             try
             {
-                foreach (MonitorCard card in _cards)
+                foreach (string id in ids)
                 {
-                    // Down to the chosen level; a monitor that is already dimmer than that is left alone.
-                    if (card.Brightness.Value > _settings.IdlePercent)
-                        card.Brightness.Value = _settings.IdlePercent;
+                    if (only != null && only.Device.Id != id) continue;
+                    int before = _idleDimmed[id];
+                    _idleDimmed.Remove(id);
+                    foreach (MonitorCard card in _cards)
+                    {
+                        if (card.Device.Id != id) continue;
+                        if (card.Brightness.Value != before)
+                        {
+                            Log.Write("idle: restoring " + card.Device.Name + ", " + why);
+                            card.Brightness.Value = before;
+                        }
+                    }
                 }
             }
             finally
             {
                 _transient = false;
             }
-            _idleDimmed = true;
         }
 
         /// <summary>Applies a profile while a chosen program is in the foreground, and undoes it afterwards.</summary>

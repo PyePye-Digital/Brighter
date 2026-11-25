@@ -100,6 +100,11 @@ namespace Brighter
         // Settings: idle
         public static string Idle { get { return T("Boştayken karart", "Dim when idle"); } }
         public static string IdleHint { get { return T("Klavye ve fare kullanılmayınca parlaklığı aşağıdaki değere indirir, hareket gelince geri alır. Zaten daha kısık olan monitöre dokunmaz.", "When keyboard and mouse are untouched, lowers brightness to the level below and restores it on activity. A monitor that is already dimmer is left alone."); } }
+        public static string IdleMedia { get { return T("Video oynarken", "While a video plays"); } }
+        public static string IdleMediaOnly { get { return T("Sadece o ekran kararmasın", "Keep only that monitor bright"); } }
+        public static string IdleMediaKeepAll { get { return T("Hiçbir ekran kararmasın", "Keep every monitor bright"); } }
+        public static string IdleMediaIgnore { get { return T("Yine de karart", "Dim anyway"); } }
+        public static string IdleMediaTip { get { return T("Tıkladıkça değişir. Video; sesi çıkan programın penceresinden ya da tam ekran uygulamadan bulunur. Penceresi olmayan arka plan müziği hiçbir ekranı açık tutmaz.", "Click to change. The video is found from the window of the program making sound, or from a full-screen app. Background music with no window keeps no monitor bright."); } }
         public static string IdleMinutes { get { return T("Bekleme (dakika)", "Wait (minutes)"); } }
         public static string IdlePercent { get { return T("İnilecek parlaklık (%)", "Brightness to drop to (%)"); } }
 

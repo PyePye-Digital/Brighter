@@ -11,6 +11,10 @@ Bağlı her monitörün parlaklığını, kontrastını, renk sıcaklığını v
   <img src="docs/screenshot-settings.png" width="360" alt="Settings and display arrangement">
 </p>
 
+## Download
+
+Grab `Brighter.exe` from the [latest release](https://github.com/PyePye-Digital/Brighter/releases/latest) and run it — no installer. Windows SmartScreen may warn about an unknown publisher the first time, because the exe is not code-signed.
+
 ## Features
 
 **Per monitor**
@@ -40,7 +44,7 @@ Bağlı her monitörün parlaklığını, kontrastını, renk sıcaklığını v
 
 - Lives in the tray; the panel opens next to it and hides when you click elsewhere. Right-click for profiles and "sleep all monitors" (they wake on the next key press or mouse move)
 - Log file for troubleshooting (`%APPDATA%\Brighter\log.txt`, also reachable from Settings)
-- Optional update check against GitHub Releases (set `AppInfo.Repository` in `src/Log.cs` to `owner/repo`)
+- Update check against GitHub Releases: Settings shows a "new version" button when one is out (`AppInfo.Repository` in `src/Log.cs`; empty it in a fork to switch the check off)
 - Start with Windows (hidden)
 - Single exe, no installer, no service, no admin rights
 - Turkish UI on Turkish systems, English everywhere else

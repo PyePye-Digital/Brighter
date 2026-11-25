@@ -8,7 +8,7 @@ namespace Brighter
     internal static class AppInfo
     {
         /// <summary>GitHub "owner/repo". Leave empty to switch the update check off.</summary>
-        public static readonly string Repository = "";
+        public static readonly string Repository = "PyePye-Digital/Brighter";
 
         public static string VersionText
         {

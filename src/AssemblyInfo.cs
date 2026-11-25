@@ -6,5 +6,4 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyProduct("Brighter")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Suleyman Sezer")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+// The version lives in Version.cs, which the release build rewrites from the git tag.

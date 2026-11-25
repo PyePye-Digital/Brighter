@@ -409,6 +409,13 @@ namespace Brighter
             Close();
         }
 
+        /// <summary>"Brighter.exe --exit" from another process (the installer or uninstaller).</summary>
+        public void ExitFromOutside()
+        {
+            Log.Write("exit requested from outside");
+            ExitApp();
+        }
+
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
             // The close button only hides the window; "Exit" in the tray menu really quits.
@@ -427,6 +434,18 @@ namespace Brighter
             _scheduleTimer.Stop();
             _activityTimer.Stop();
             _saveTimer.Stop();
+            _refreshTimer.Stop();
+
+            // Never leave a monitor switched off behind us.
+            if (_settings.OffDisplays.Count > 0 && _settings.DisplaySnapshot.Count > 0)
+            {
+                Log.Write("display: turning displays back on before exit");
+                DisplayPower.Restore(_settings.DisplaySnapshot);
+                _settings.OffDisplays.Clear();
+                _settings.DisplaySnapshot = new List<SavedDisplay>();
+                _settings.RefreshPending = false;
+            }
+
             SettingsStore.Save(_settings);
             UnregisterHotkeys();
             GammaRamp.ResetAll();

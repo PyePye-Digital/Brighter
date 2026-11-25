@@ -13,7 +13,12 @@ Bağlı her monitörün parlaklığını, kontrastını, renk sıcaklığını v
 
 ## Download
 
-Grab `Brighter.exe` from the [latest release](https://github.com/PyePye-Digital/Brighter/releases/latest) and run it — no installer. Windows SmartScreen may warn about an unknown publisher the first time, because the exe is not code-signed.
+From the [latest release](https://github.com/PyePye-Digital/Brighter/releases/latest):
+
+- **`Brighter-Setup-x.y.z.exe`** (recommended): installs for your user only, no administrator rights. Adds a Start menu shortcut, can start Brighter with Windows, and uninstalls cleanly from *Settings > Apps* (settings, log and the start-up entry go too).
+- **`Brighter.exe`**: portable, just run it. Keep it in a permanent folder if you switch on *Start with Windows*, since that entry points at the exe where it is.
+
+Windows SmartScreen may warn about an unknown publisher the first time, because the files are not code-signed.
 
 ## Features
 
@@ -72,9 +77,11 @@ build.bat
 
 The result is `bin\Brighter.exe`; compiler messages are also written to `build.log`.
 
+`build-installer.bat` additionally produces `dist\Brighter-Setup-<version>.exe`; it needs [Inno Setup 6](https://jrsoftware.org/isinfo.php).
+
 Alternatively open `Brighter.csproj` in Visual Studio / Rider, or run `dotnet build -c Release` if you have the .NET SDK.
 
-Every push is built by GitHub Actions (`.github/workflows/build.yml`); pushing a tag such as `v1.0.0` publishes a release with the exe attached.
+Every push is built by GitHub Actions (`.github/workflows/build.yml`); the exe and the installer are attached to the run. Pushing a tag such as `v1.2.0` sets that version in both and publishes a release with them.
 
 ## Requirements
 
@@ -130,6 +137,8 @@ Settings live in `%APPDATA%\Brighter\settings.xml`.
 | `src/Log.cs` | Version info and the log file |
 | `src/UpdateChecker.cs` | GitHub Releases update check |
 | `src/AutoStart.cs` | Start-with-Windows registry entry |
+| `src/Version.cs` | Version number (rewritten from the tag by release builds) |
+| `installer/Brighter.iss` | Inno Setup script for the installer |
 | `src/NativeMethods.cs` | Win32 P/Invoke declarations |
 | `src/Strings.cs` | TR / EN texts |
 
